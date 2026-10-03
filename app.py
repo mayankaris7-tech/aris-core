@@ -1,11 +1,6 @@
 import streamlit as st
 import streamlit.components.v1 as components
-import os
-import time
-from PIL import Image
-from google import genai
-from google.genai import types
-from google.genai.errors import APIError
+from duckduckgo_search import DDGS
 
 # --- PAGE CONFIG ---
 st.set_page_config(
@@ -64,14 +59,6 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# --- GEMINI CLIENT SETUP ---
-@st.cache_resource
-def get_gemini_client():
-    api_key = st.secrets.get("GEMINI_API_KEY") or os.environ.get("GEMINI_API_KEY")
-    if not api_key:
-        return None
-    return genai.Client(api_key=api_key)
-
 # --- SESSION STATE ---
 if "threads" not in st.session_state:
     st.session_state.threads = {"Master Terminal": []}
@@ -102,7 +89,7 @@ def mj_voice_agent(text):
 st.markdown("""
 <div class="jarvis-header">
     <h1 class="jarvis-title">ARIS // JARVIS CORE</h1>
-    <div style="color: #38bdf8; font-size: 12px; letter-spacing: 2px;">TACTICAL AI MATRIX | RESILIENT NEURAL ROUTER</div>
+    <div style="color: #38bdf8; font-size: 12px; letter-spacing: 2px;">NEURAL ENGINE: OPEN-SOURCE LLAMA 3 (NO-KEY MATRIX)</div>
 </div>
 """, unsafe_allow_html=True)
 
@@ -180,13 +167,32 @@ c1, c2, c3, c4 = st.columns(4)
 with c1:
     st.markdown('<div class="hud-card">STATUS<div class="hud-val">ONLINE 100%</div></div>', unsafe_allow_html=True)
 with c2:
-    st.markdown('<div class="hud-card">NEURAL CORE<div class="hud-val">AUTO FAILOVER</div></div>', unsafe_allow_html=True)
+    st.markdown('<div class="hud-card">NEURAL CORE<div class="hud-val">LLAMA-3 (FREE)</div></div>', unsafe_allow_html=True)
 with c3:
     st.markdown(f'<div class="hud-card">MEMORY VAULT<div class="hud-val">{len(st.session_state.memory_vault)} ENTRIES</div></div>', unsafe_allow_html=True)
 with c4:
-    st.markdown('<div class="hud-card">COMM LINK<div class="hud-val">ACTIVE</div></div>', unsafe_allow_html=True)
+    st.markdown('<div class="hud-card">API KEY<div class="hud-val">NOT REQUIRED</div></div>', unsafe_allow_html=True)
 
 st.write("")
+
+# --- ZERO-KEY ARIS CORE (DUCKDUCKGO AI ROUTER) ---
+def run_no_key_aris(query):
+    memories = "\n".join([f"- {m}" for m in st.session_state.memory_vault]) or "None."
+    prompt = f"""You are ARIS // JARVIS, an elite AI assistant created by Mayank (Boss).
+Tone: Intelligent, razor-sharp, loyal, addressing Mayank as Boss or Sir.
+If query is in Hindi/Hinglish, reply in conversational Hinglish. If English, British Jarvis tone.
+Persistent Memory:
+{memories}
+
+Boss command: {query}"""
+
+    try:
+        ddgs = DDGS()
+        # model="meta-llama/Llama-3-70b-instruct" or "claude-3-haiku" or "gpt-4o-mini"
+        response = ddgs.chat(keywords=prompt, model="meta-llama/Llama-3-70b-instruct")
+        return response
+    except Exception as e:
+        return f"[SYSTEM ERROR]: {str(e)}"
 
 # --- SIDEBAR CONTROLS ---
 with st.sidebar:
@@ -203,106 +209,34 @@ with st.sidebar:
         for idx, m in enumerate(st.session_state.memory_vault):
             st.info(f"• {m}")
 
-# --- INPUT FEEDS ---
-feed_col1, feed_col2 = st.columns(2)
-with feed_col1:
-    audio_feed = st.audio_input("🎙️ Voice Comm Link")
-with feed_col2:
-    uploaded_file = st.file_uploader("📤 Optical Feed (OCR/Inspect)", type=["jpg", "jpeg", "png", "webp"])
-
-# --- RESILIENT STREAMING WITH AUTO RETRY & MODEL FALLBACK ---
-def stream_with_resilience(client, models, contents, config):
-    for model_name in models:
-        for attempt in range(2):
-            try:
-                response = client.models.generate_content_stream(
-                    model=model_name,
-                    contents=contents,
-                    config=config
-                )
-                for chunk in response:
-                    if chunk.text:
-                        yield chunk.text
-                return
-            except APIError as e:
-                err_str = str(e)
-                # Agar 503 (Overloaded) ya 429 (Rate limit) aaye, thoda pause le kar retry ya fallback karega
-                if ("503" in err_str or "429" in err_str) and attempt == 0:
-                    time.sleep(2)
-                    continue
-                break
-            except Exception:
-                break
-    yield "\n\n[CORE ALERT]: Servers par temporary spike load hai. Kripya 10-15 second baad dubara send karein."
-
-# --- STREAMING EXECUTION CORE ---
-def run_aris_core(query=None, uploaded_file=None, audio_data=None):
-    client = get_gemini_client()
-    if not client:
-        yield "SYSTEM ERROR: GEMINI_API_KEY missing from Streamlit Secrets."
-        return
-
-    memories = "\n".join([f"- {m}" for m in st.session_state.memory_vault]) or "No records."
-    system_prompt = f"""
-You are ARIS // JARVIS-Supreme, an elite AI assistant engineered by Mayank.
-Tone: Confident, fast, razor-sharp intelligence, loyal, addressing user as Boss or Sir.
-If Hindi/Hinglish is used, respond in witty Hinglish. If English, British Jarvis tone.
-[MEMORY VAULT]:
-{memories}
-"""
-
-    parts = []
-    if uploaded_file is not None:
-        parts.append(types.Part.from_bytes(data=uploaded_file.getvalue(), mime_type=uploaded_file.type or "image/jpeg"))
-    
-    if audio_data is not None:
-        parts.append(types.Part.from_bytes(data=audio_data.getvalue(), mime_type="audio/wav"))
-        if not query:
-            parts.append("Listen to this voice transmission from Boss, understand it completely, and respond in ARIS Jarvis style.")
-
-    if query:
-        q_lower = query.lower()
-        if q_lower.startswith("remember "):
-            fact = query[9:].strip()
-            if fact and fact not in st.session_state.memory_vault:
-                st.session_state.memory_vault.append(fact)
-            yield f"ARIS: Data segment logged to persistent memory vault: '{fact}'."
-            return
-        parts.append(query)
-
-    config = types.GenerateContentConfig(
-        system_instruction=system_prompt,
-        temperature=0.4,
-        max_output_tokens=2500
-    )
-
-    # Models list with priority order: pehle flash, agar 503 aaya toh automatically next model
-    candidate_models = ["gemini-2.5-flash", "gemini-2.5-pro"]
-
-    for chunk in stream_with_resilience(client, candidate_models, parts, config):
-        yield chunk
-
-# --- DISPLAY CONVERSATION ---
+# --- DISPLAY CHAT HISTORY ---
 current_messages = st.session_state.threads[st.session_state.current_thread]
 for msg in current_messages:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
 
-# --- PROCESS INPUTS ---
-user_input = st.chat_input("Command Jarvis Core...")
+# --- USER INPUT ---
+user_input = st.chat_input("Command Jarvis Core (No Key Required)...")
 
-if user_input or (audio_feed and "last_audio" not in st.session_state):
-    prompt_label = user_input if user_input else "🎙 [Voice Audio Transmission Sent]"
-    current_messages.append({"role": "user", "content": prompt_label})
+if user_input:
+    # Memory hook
+    q_lower = user_input.lower().strip()
+    if q_lower.startswith("remember "):
+        fact = user_input[9:].strip()
+        if fact and fact not in st.session_state.memory_vault:
+            st.session_state.memory_vault.append(fact)
+        ack = f"ARIS: Memory updated: '{fact}', Sir."
+        current_messages.append({"role": "user", "content": user_input})
+        current_messages.append({"role": "assistant", "content": ack})
+        st.rerun()
+
+    current_messages.append({"role": "user", "content": user_input})
     with st.chat_message("user"):
-        st.markdown(prompt_label)
+        st.markdown(user_input)
 
     with st.chat_message("assistant"):
-        stream_box = st.empty()
-        full_text = ""
-        for chunk in run_aris_core(query=user_input, uploaded_file=uploaded_file, audio_data=audio_feed):
-            full_text += chunk
-            stream_box.markdown(full_text + " ▌")
-        stream_box.markdown(full_text)
-        current_messages.append({"role": "assistant", "content": full_text})
-        mj_voice_agent(full_text)
+        with st.spinner("ARIS analyzing..."):
+            reply = run_no_key_aris(user_input)
+            st.markdown(reply)
+            current_messages.append({"role": "assistant", "content": reply})
+            mj_voice_agent(reply)
