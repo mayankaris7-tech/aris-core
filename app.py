@@ -5,6 +5,7 @@ import time
 from PIL import Image
 from google import genai
 from google.genai import types
+from google.genai.errors import APIError
 
 # --- PAGE CONFIG ---
 st.set_page_config(
@@ -101,7 +102,7 @@ def mj_voice_agent(text):
 st.markdown("""
 <div class="jarvis-header">
     <h1 class="jarvis-title">ARIS // JARVIS CORE</h1>
-    <div style="color: #38bdf8; font-size: 12px; letter-spacing: 2px;">TACTICAL AI MATRIX | GEMINI 3.8 FLASH</div>
+    <div style="color: #38bdf8; font-size: 12px; letter-spacing: 2px;">TACTICAL AI MATRIX | RESILIENT NEURAL ROUTER</div>
 </div>
 """, unsafe_allow_html=True)
 
@@ -179,7 +180,7 @@ c1, c2, c3, c4 = st.columns(4)
 with c1:
     st.markdown('<div class="hud-card">STATUS<div class="hud-val">ONLINE 100%</div></div>', unsafe_allow_html=True)
 with c2:
-    st.markdown('<div class="hud-card">NEURAL CORE<div class="hud-val">GEMINI 3.8</div></div>', unsafe_allow_html=True)
+    st.markdown('<div class="hud-card">NEURAL CORE<div class="hud-val">AUTO FAILOVER</div></div>', unsafe_allow_html=True)
 with c3:
     st.markdown(f'<div class="hud-card">MEMORY VAULT<div class="hud-val">{len(st.session_state.memory_vault)} ENTRIES</div></div>', unsafe_allow_html=True)
 with c4:
@@ -202,12 +203,37 @@ with st.sidebar:
         for idx, m in enumerate(st.session_state.memory_vault):
             st.info(f"• {m}")
 
-# --- INPUT FEEDS: MULTIMODAL AUDIO & OPTICAL SENSORS ---
+# --- INPUT FEEDS ---
 feed_col1, feed_col2 = st.columns(2)
 with feed_col1:
     audio_feed = st.audio_input("🎙️ Voice Comm Link")
 with feed_col2:
     uploaded_file = st.file_uploader("📤 Optical Feed (OCR/Inspect)", type=["jpg", "jpeg", "png", "webp"])
+
+# --- RESILIENT STREAMING WITH AUTO RETRY & MODEL FALLBACK ---
+def stream_with_resilience(client, models, contents, config):
+    for model_name in models:
+        for attempt in range(2):
+            try:
+                response = client.models.generate_content_stream(
+                    model=model_name,
+                    contents=contents,
+                    config=config
+                )
+                for chunk in response:
+                    if chunk.text:
+                        yield chunk.text
+                return
+            except APIError as e:
+                err_str = str(e)
+                # Agar 503 (Overloaded) ya 429 (Rate limit) aaye, thoda pause le kar retry ya fallback karega
+                if ("503" in err_str or "429" in err_str) and attempt == 0:
+                    time.sleep(2)
+                    continue
+                break
+            except Exception:
+                break
+    yield "\n\n[CORE ALERT]: Servers par temporary spike load hai. Kripya 10-15 second baad dubara send karein."
 
 # --- STREAMING EXECUTION CORE ---
 def run_aris_core(query=None, uploaded_file=None, audio_data=None):
@@ -250,17 +276,11 @@ If Hindi/Hinglish is used, respond in witty Hinglish. If English, British Jarvis
         max_output_tokens=2500
     )
 
-    try:
-        response = client.models.generate_content_stream(
-            model="gemini-3.8-flash",
-            contents=parts,
-            config=config
-        )
-        for chunk in response:
-            if chunk.text:
-                yield chunk.text
-    except Exception as e:
-        yield f"[CORE FAULT]: {str(e)}"
+    # Models list with priority order: pehle flash, agar 503 aaya toh automatically next model
+    candidate_models = ["gemini-2.5-flash", "gemini-2.5-pro"]
+
+    for chunk in stream_with_resilience(client, candidate_models, parts, config):
+        yield chunk
 
 # --- DISPLAY CONVERSATION ---
 current_messages = st.session_state.threads[st.session_state.current_thread]
