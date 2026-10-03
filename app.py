@@ -101,7 +101,7 @@ def mj_voice_agent(text):
 st.markdown("""
 <div class="jarvis-header">
     <h1 class="jarvis-title">ARIS // JARVIS CORE</h1>
-    <div style="color: #38bdf8; font-size: 12px; letter-spacing: 2px;">TACTICAL AI MATRIX | GEMINI 2.5 FLASH</div>
+    <div style="color: #38bdf8; font-size: 12px; letter-spacing: 2px;">TACTICAL AI MATRIX | GEMINI 3.8 FLASH</div>
 </div>
 """, unsafe_allow_html=True)
 
@@ -142,7 +142,7 @@ arc_reactor_html = """
   group.add(ring2);
 
   const core = new THREE.Mesh(
-    new THREE.IcosahedronGeometry(0.8, 1),
+    new THREE.IcosahedronGeometry(0.85, 1),
     new THREE.MeshBasicMaterial({ color: 0x38bdf8, wireframe: true })
   );
   group.add(core);
@@ -179,11 +179,11 @@ c1, c2, c3, c4 = st.columns(4)
 with c1:
     st.markdown('<div class="hud-card">STATUS<div class="hud-val">ONLINE 100%</div></div>', unsafe_allow_html=True)
 with c2:
-    st.markdown('<div class="hud-card">NEURAL CORE<div class="hud-val">GEMINI 2.5</div></div>', unsafe_allow_html=True)
+    st.markdown('<div class="hud-card">NEURAL CORE<div class="hud-val">GEMINI 3.8</div></div>', unsafe_allow_html=True)
 with c3:
     st.markdown(f'<div class="hud-card">MEMORY VAULT<div class="hud-val">{len(st.session_state.memory_vault)} ENTRIES</div></div>', unsafe_allow_html=True)
 with c4:
-    st.markdown('<div class="hud-card">COMM LINK<div class="hud-val">AUDIO/VISION</div></div>', unsafe_allow_html=True)
+    st.markdown('<div class="hud-card">COMM LINK<div class="hud-val">ACTIVE</div></div>', unsafe_allow_html=True)
 
 st.write("")
 
@@ -205,9 +205,9 @@ with st.sidebar:
 # --- INPUT FEEDS: MULTIMODAL AUDIO & OPTICAL SENSORS ---
 feed_col1, feed_col2 = st.columns(2)
 with feed_col1:
-    audio_feed = st.audio_input("🎙️ Voice Comm Link (Direct Audio Input)")
+    audio_feed = st.audio_input("🎙️ Voice Comm Link")
 with feed_col2:
-    uploaded_file = st.file_uploader("📤 Multimodal Optical Feed", type=["jpg", "jpeg", "png", "webp"])
+    uploaded_file = st.file_uploader("📤 Optical Feed (OCR/Inspect)", type=["jpg", "jpeg", "png", "webp"])
 
 # --- STREAMING EXECUTION CORE ---
 def run_aris_core(query=None, uploaded_file=None, audio_data=None):
@@ -252,7 +252,7 @@ If Hindi/Hinglish is used, respond in witty Hinglish. If English, British Jarvis
 
     try:
         response = client.models.generate_content_stream(
-            model="gemini-2.5-flash",
+            model="gemini-3.8-flash",
             contents=parts,
             config=config
         )
@@ -271,10 +271,8 @@ for msg in current_messages:
 # --- PROCESS INPUTS ---
 user_input = st.chat_input("Command Jarvis Core...")
 
-trigger_prompt = user_input or (audio_feed and "audio_last" not in st.session_state)
-
-if trigger_prompt:
-    prompt_label = user_input if user_input else "🎙️️ [Voice Audio Transmission Sent]"
+if user_input or (audio_feed and "last_audio" not in st.session_state):
+    prompt_label = user_input if user_input else "🎙 [Voice Audio Transmission Sent]"
     current_messages.append({"role": "user", "content": prompt_label})
     with st.chat_message("user"):
         st.markdown(prompt_label)
